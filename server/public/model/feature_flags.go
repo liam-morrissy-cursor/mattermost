@@ -152,6 +152,9 @@ type FeatureFlags struct {
 
 	// FEATURE_FLAG_REMOVAL: RecurringScheduledPosts - Remove this when the feature is GA.
 	RecurringScheduledPosts bool
+
+	// EnableExperienceAPI gates the DDIL experience surface area.
+	EnableExperienceAPI bool
 }
 
 func (f *FeatureFlags) SetDefaults() {
@@ -217,6 +220,8 @@ func (f *FeatureFlags) SetDefaults() {
 	f.EnableMFIPluginSignaturePublicKey = true
 
 	f.RecurringScheduledPosts = false
+
+	f.EnableExperienceAPI = true
 }
 
 // IsChannelPermissionPoliciesEnabled reports whether channel-scope
