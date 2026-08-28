@@ -2,12 +2,8 @@
   "name": "Mattermost Cloud Agent",
   "user": "ubuntu",
   "build": {
-    "dockerfile": "Dockerfile",
-    "context": "."
+    "dockerfile": "Dockerfile"
   },
-  "repositoryDependencies": [
-    "github.com/mattermost/enterprise"
-  ],
   "install": "bash .cursor/scripts/cloud-agent-install.sh",
   "start": "bash .cursor/scripts/cloud-agent-start.sh",
   "ports": [

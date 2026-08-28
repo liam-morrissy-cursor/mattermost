@@ -95,8 +95,8 @@ verify_enterprise_checkout() {
 
   local target
   if ! target="$(find_enterprise_checkout)"; then
-    log "Enterprise checkout not found. Ensure the Cursor multi-repo environment includes github.com/mattermost/enterprise."
-    return 1
+    log "Enterprise checkout not found; continuing as team edition. Set CLOUD_AGENT_SKIP_ENTERPRISE=true to silence this, or add github.com/mattermost/enterprise as a multi-repo dependency if you have access."
+    return 0
   fi
 
   log "Enterprise checkout ready at $target."
@@ -136,8 +136,10 @@ hydrate_go_dependencies() {
 }
 
 hydrate_webapp_dependencies() {
-  if is_true "${CLOUD_AGENT_SKIP_WEBAPP_DEPS:-false}"; then
-    log "Skipping webapp dependency hydration."
+  if is_true "${CLOUD_AGENT_FULL_DEPS:-false}"; then
+    :
+  elif is_true "${CLOUD_AGENT_SKIP_WEBAPP_DEPS:-true}"; then
+    log "Skipping webapp dependency hydration (default). Set CLOUD_AGENT_FULL_DEPS=true to install."
     return 0
   fi
 
@@ -148,8 +150,10 @@ hydrate_webapp_dependencies() {
 }
 
 hydrate_playwright_dependencies() {
-  if is_true "${CLOUD_AGENT_SKIP_PLAYWRIGHT_DEPS:-false}"; then
-    log "Skipping Playwright dependency hydration."
+  if is_true "${CLOUD_AGENT_FULL_DEPS:-false}"; then
+    :
+  elif is_true "${CLOUD_AGENT_SKIP_PLAYWRIGHT_DEPS:-true}"; then
+    log "Skipping Playwright dependency hydration (default). Set CLOUD_AGENT_FULL_DEPS=true to install."
     return 0
   fi
 
