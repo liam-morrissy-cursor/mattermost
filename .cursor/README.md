@@ -10,13 +10,19 @@ This fork does **not** declare `mattermost/enterprise` as a repository dependenc
 
 - Ubuntu 24.04.
 - Docker CE 28.5.2 with `fuse-overlayfs` and `iptables-legacy`, matching Cursor's Docker-in-Cloud guidance for complex compose setups.
-- Go 1.26.4 from `server/.go-version`.
-- Node 24.11.1/npm 11 via nvm, matching `.nvmrc` and `webapp/package.json`.
+- Go 1.26.4 from `server/.go-version`, copied from the official `golang:1.26.4-bookworm` image.
+- Node 24.11.1/npm 11 matching `.nvmrc` and `webapp/package.json`, copied from the official `node:24.11.1-bookworm` image into nvm's tree so `nvm use` still works.
 - Browser runtime libraries for the Playwright e2e suite.
-- AWS CLI v2 for S3 uploads.
-- Common Mattermost build/test tools: `make`, `jq`, `xmlsec1`, `pgloader`, Git LFS, GitHub CLI (from GitHub releases, not `cli.github.com` apt), Python 3, and build essentials.
+- AWS CLI v2 for S3 uploads, installed **best effort** — nothing here needs it, so a failed download logs a warning instead of failing the build.
+- Common Mattermost build/test tools: `make`, `jq`, `xmlsec1`, `pgloader`, Git LFS, GitHub CLI, Python 3, and build essentials.
 
-`gh` is installed from `github.com/cli/cli` releases. The builder used by Cloud Agents fails TLS to `cli.github.com` (`curl` exit 35).
+## Why toolchains come from Docker Hub
+
+The Cloud Build network reaches some upstream hosts and not others. `cli.github.com` failed with `curl` exit 35, while `archive.ubuntu.com` and `download.docker.com` succeeded in the same build. Probing that allowlist shows `go.dev`, `nodejs.org`, and `awscli.amazonaws.com` blocked the same way `cli.github.com` is.
+
+So the build only depends on hosts it must already reach: the registry (for `ubuntu:24.04`), `download.docker.com`, and `github.com` (Cursor clones this repo from there). Go and Node come from official Docker Hub images, which carry the same upstream binaries. `gh` comes from `github.com/cli/cli` releases.
+
+If you bump `GO_VERSION` or `NODE_VERSION`, the matching `-bookworm` tag must exist on Docker Hub. The build self-checks both versions and fails loudly if they drift.
 
 ## Runtime Hooks
 

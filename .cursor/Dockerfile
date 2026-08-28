@@ -1,9 +1,19 @@
+# Toolchains come from Docker Hub rather than go.dev / nodejs.org. This builder
+# blocks some upstream hosts (cli.github.com already failed with curl exit 35),
+# and the registry is the one source the build has to reach anyway for the base
+# image. These are the official images, so the binaries are the upstream ones.
+ARG GO_VERSION=1.26.4
+ARG NODE_VERSION=24.11.1
+
+FROM golang:${GO_VERSION}-bookworm AS go_src
+FROM node:${NODE_VERSION}-bookworm AS node_src
+
 FROM ubuntu:24.04
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-ARG GO_VERSION=1.26.4
-ARG NODE_VERSION=24.11.1
+ARG GO_VERSION
+ARG NODE_VERSION
 ARG NVM_VERSION=0.40.3
 ARG DOCKER_VERSION=5:28.5.2-1~ubuntu.24.04~noble
 ARG CONTAINERD_VERSION=2.2.3-1~ubuntu.24.04~noble
@@ -117,26 +127,26 @@ RUN case "$(dpkg --print-architecture)" in \
     install -m 0755 "/tmp/gh_${GH_VERSION}_linux_${gh_arch}/bin/gh" /usr/local/bin/gh && \
     rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${gh_arch}"
 
-RUN case "$(dpkg --print-architecture)" in \
-      amd64) go_arch=amd64 ;; \
-      arm64) go_arch=arm64 ;; \
-      *) echo "Unsupported Go architecture: $(dpkg --print-architecture)" >&2; exit 1 ;; \
-    esac && \
-    curl --retry 3 --retry-delay 5 -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${go_arch}.tar.gz" -o /tmp/go.tgz && \
-    rm -rf /usr/local/go && \
-    tar -C /usr/local -xzf /tmp/go.tgz && \
-    ln -sfnT /usr/local/go/bin/go /usr/local/bin/go && \
+COPY --from=go_src /usr/local/go /usr/local/go
+RUN ln -sfnT /usr/local/go/bin/go /usr/local/bin/go && \
     ln -sfnT /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
-    rm -f /tmp/go.tgz
+    go version | grep -q "go${GO_VERSION}"
 
+# Best effort: nothing in this repo needs the AWS CLI, and awscli.amazonaws.com
+# may be blocked here. A missing aws must not fail the build; the install hook
+# already reports it as "not available".
 RUN case "$(dpkg --print-architecture)" in \
       amd64) aws_arch=x86_64 ;; \
       arm64) aws_arch=aarch64 ;; \
-      *) echo "Unsupported AWS CLI architecture: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+      *) aws_arch="" ;; \
     esac && \
-    curl --retry 3 --retry-delay 5 -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip" -o /tmp/awscliv2.zip && \
-    unzip -q /tmp/awscliv2.zip -d /tmp && \
-    /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli && \
+    if [ -n "$aws_arch" ] && \
+       curl --retry 3 --retry-delay 5 -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip" -o /tmp/awscliv2.zip; then \
+      unzip -q /tmp/awscliv2.zip -d /tmp && \
+      /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli; \
+    else \
+      echo "WARNING: AWS CLI download unavailable; continuing without it." >&2; \
+    fi && \
     rm -rf /tmp/aws /tmp/awscliv2.zip
 
 RUN install -m 0755 -d /var/run/sshd && \
@@ -150,11 +160,21 @@ RUN install -m 0755 -d /var/run/sshd && \
     install -d -o ubuntu -g ubuntu "${NVM_DIR}" "${GOPATH}"
 
 RUN git clone --depth 1 --branch "v${NVM_VERSION}" https://github.com/nvm-sh/nvm.git "${NVM_DIR}" && \
-    chown -R ubuntu:ubuntu "${NVM_DIR}" "${GOPATH}" && \
-    su ubuntu -c "bash -lc 'set -e; source ${NVM_DIR}/nvm.sh; nvm install ${NODE_VERSION}; nvm alias default ${NODE_VERSION}; nvm use default'" && \
+    chown -R ubuntu:ubuntu "${NVM_DIR}" "${GOPATH}"
+
+# Seed nvm's tree with the official Node build rather than running `nvm install`,
+# which downloads from nodejs.org. nvm then reports the version as installed and
+# `nvm use` works offline.
+COPY --from=node_src --chown=ubuntu:ubuntu /usr/local/ ${NVM_DIR}/versions/node/v${NODE_VERSION}/
+
+RUN install -d -o ubuntu -g ubuntu "${NVM_DIR}/alias" && \
+    echo "${NODE_VERSION}" > "${NVM_DIR}/alias/default" && \
+    chown ubuntu:ubuntu "${NVM_DIR}/alias/default" && \
     ln -sfn "${NVM_DIR}/versions/node/v${NODE_VERSION}/bin/node" /usr/local/bin/node && \
     ln -sfn "${NVM_DIR}/versions/node/v${NODE_VERSION}/bin/npm" /usr/local/bin/npm && \
-    ln -sfn "${NVM_DIR}/versions/node/v${NODE_VERSION}/bin/npx" /usr/local/bin/npx
+    ln -sfn "${NVM_DIR}/versions/node/v${NODE_VERSION}/bin/npx" /usr/local/bin/npx && \
+    node --version | grep -qx "v${NODE_VERSION}" && \
+    su ubuntu -c "bash -lc 'set -e; source ${NVM_DIR}/nvm.sh; nvm use default >/dev/null; node --version'"
 
 RUN { \
       echo 'export NVM_DIR="$HOME/.nvm"'; \
