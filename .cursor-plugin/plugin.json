@@ -1,0 +1,9 @@
+{
+  "name": "mattermost-skills",
+  "description": "Agent skills for the Mattermost monorepo.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Liam Morrissy"
+  },
+  "skills": ".cursor/skills"
+}
