@@ -102,13 +102,20 @@ RUN mkdir -p /etc/docker && \
     update-alternatives --set iptables /usr/sbin/iptables-legacy && \
     update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
-RUN install -m 0755 -d /etc/apt/keyrings && \
-    curl --retry 3 --retry-delay 5 -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
-    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends gh && \
-    rm -rf /var/lib/apt/lists/*
+# Install gh from GitHub releases. The cli.github.com apt repo fails in this
+# builder with curl exit 35 (SSL connect) on the keyring download.
+ARG GH_VERSION=2.81.0
+RUN case "$(dpkg --print-architecture)" in \
+      amd64) gh_arch=amd64 ;; \
+      arm64) gh_arch=arm64 ;; \
+      *) echo "Unsupported gh architecture: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL \
+      "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${gh_arch}.tar.gz" \
+      -o /tmp/gh.tgz && \
+    tar -C /tmp -xzf /tmp/gh.tgz && \
+    install -m 0755 "/tmp/gh_${GH_VERSION}_linux_${gh_arch}/bin/gh" /usr/local/bin/gh && \
+    rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${gh_arch}"
 
 RUN case "$(dpkg --print-architecture)" in \
       amd64) go_arch=amd64 ;; \
