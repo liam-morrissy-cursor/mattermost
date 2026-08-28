@@ -1,0 +1,27 @@
+---
+description: Before opening or updating a PR, run TestGuardian and visually verify user-visible UI
+alwaysApply: true
+---
+
+# Verify before PRs
+
+Before opening a new pull request, or updating an existing PR with code changes:
+
+1. Run the **test-guardian** subagent. Do not skip because tests "probably pass." Do not substitute a full Playwright matrix. TestGuardian picks Jest, API4, and/or `make test-server` from the diff (and a single Chrome Playwright spec only when the skill says the change is user-visible UI).
+2. If TestGuardian reports failures, fix them or say what you did not run and why before creating the PR.
+
+## Visual verification (when applicable)
+
+Run this **in addition to** TestGuardian when the diff changes what a user sees or clicks: `webapp/channels` components, CSS, layout, routing, client state, or rendered copy.
+
+Skip visual verification for Go-only, API-only, config, docs, or test-only diffs. Say that you skipped it and why.
+
+When it applies:
+
+- Exercise the changed flow in the running app the way a user would (click, type, submit, navigate). Local UI is `http://localhost:8065`. A single screenshot is not verification.
+- Check other pages or routes that share the state, data, or components you touched.
+- Check empty, error, and flag/route variants the change actually hits — not only the happy path.
+- If layout or styling changed, check a desktop and a mobile viewport.
+- If verification finds a problem, fix it and re-check. Do not open or update the PR with unverified UI.
+
+If browser tools are unavailable (Cloud Agent, headless, app not running), say that. Then rely on TestGuardian’s scoped tests, including a named Chrome Playwright spec when the skill selected E2E. Do not claim the UI was visually verified.
