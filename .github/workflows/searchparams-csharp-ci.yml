@@ -1,0 +1,52 @@
+# Scoped CI for the ParseSearchParams C# sidecar (PROG-68).
+# Not a full .NET monolith matrix — this slice only.
+name: SearchParams C# CI
+on:
+  push:
+    branches:
+      - master
+      - release-*
+      - progressive
+    paths:
+      - "server/searchparams-csharp/**"
+      - ".github/workflows/searchparams-csharp-ci.yml"
+  pull_request:
+    paths:
+      - "server/searchparams-csharp/**"
+      - ".github/workflows/searchparams-csharp-ci.yml"
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow, github.ref) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-sidecar-smoke:
+    name: dotnet test and sidecar spawn
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: server/searchparams-csharp
+    steps:
+      - name: Checkout mattermost project
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1  # v5.4.0
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore SearchParams.sln
+      - name: Run dotnet test
+        run: dotnet test SearchParams.sln --no-restore --configuration Release --verbosity normal
+      - name: Publish sidecar
+        run: >
+          dotnet publish src/SearchParams.Sidecar/SearchParams.Sidecar.csproj
+          --no-restore
+          --configuration Release
+          --output publish
+      - name: Sidecar spawn smoke
+        run: bash scripts/sidecar-smoke.sh "$PWD/publish/SearchParams.Sidecar"
