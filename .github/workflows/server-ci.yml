@@ -66,6 +66,7 @@ jobs:
             server/**/*.md
             server/NOTICE.txt
             server/CHANGELOG.md
+            server/searchparams-csharp/**
       - name: Setup build environment
         env:
           CHAINCTL_IDENTITY: ee399b4c72dd4e58e3d617f78fc47b74733c9557/922f2d48307d6f5f
